@@ -23,12 +23,16 @@ class CLI:
             return await self._process_message(message)
 
     async def _process_message(self, message: str) -> str | None:
+        """
+        正常情况下，返回字符串（AI最终的回答）。如果返回 None，说明出现意料外的问题
+        """
         if not self.agent:
             return None
 
         # 用于标记当前是否已经开始输出 AI 产生的内容，如果没有，则输出一些格式性的内容，提醒用户，AI准备开始输出了。
         # 如果当前已经开始输出，则不需要再输出格式性的内容了。
         assistant_streaming = False
+        final_response: str | None = None
         async for event in self.agent.run(message):
             if event.type == AgentEventType.TEXT_DELTA:
                 content = event.data.get("content", "")
@@ -36,6 +40,15 @@ class CLI:
                     self.tui.begin_assistant()
                     assistant_streaming = True
                 self.tui.stream_assistant_delta(content)
+            elif event.type == AgentEventType.TEXT_COMPLETE:
+                final_response = event.data.get("content", "")
+                if assistant_streaming:
+                    self.tui.end_assistant()
+                    assistant_streaming = False
+            elif event.type == AgentEventType.AGENT_ERROR:
+                error = event.data.get("error", "Unknown error")
+                console.print(f"\n[error]Error: {error}")
+        return final_response
 
 
 async def run(messages: list[dict[str, Any]]):
@@ -56,6 +69,7 @@ def main(prompt: str | None = None):
     )
     if prompt:
         result = asyncio.run(cli.run_single(prompt))
+        # 如果是 None，说明出现意料外的问题，直接退出程序
         if result is None:
             sys.exit(1)
 

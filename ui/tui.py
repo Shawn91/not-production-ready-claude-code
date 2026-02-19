@@ -43,6 +43,7 @@ def get_console() -> Console:
 class TUI:
     def __init__(self, console: Console | None = None):
         self.console = console or get_console()
+        # 用于标记当前是否正在输出AI对话内容
         self._assistant_stream_open = False
 
     def begin_assistant(self):
@@ -50,6 +51,12 @@ class TUI:
         self.console.print()
         self.console.print(Rule(Text("Assistant", style="assistant")))
         self._assistant_stream_open = True
+
+    def end_assistant(self):
+        """结束输出AI对话内容后，UI上进行一些首尾工作"""
+        if self._assistant_stream_open:
+            self.console.print()
+        self._assistant_stream_open = False
 
     def stream_assistant_delta(self, content: str) -> None:
         """将ai流式返回的一块内容输出到终端"""
