@@ -3,29 +3,36 @@ from typing import AsyncGenerator
 from agent.events import AgentEvent, AgentEventType
 from client.llm_client import LLMClient
 from client.response import StreamEventType
+from context.manager import ContextManager
 
 
 class Agent:
     def __init__(self):
         self.client = LLMClient()
+        self.context_manager = ContextManager()
 
     async def run(self, message: str):
-        """给定消息历史，运行一轮 agent，返回一条消息。此外，还要负责发送消息等额外工作"""
+        """给定消息历史，运行一轮 agent，返回一条消息。此外，还要负责发送事件消息等额外工作"""
         # 向外通知 agent 启动了
         yield AgentEvent.agent_start(message)
+        self.context_manager.add_user_message(message)
+
         final_response = ""
         async for event in self._agentic_loop():
             yield event
             if event.type == AgentEventType.TEXT_COMPLETE:
-                final_response = event.data.get("content")
+                final_response = event.data.get("content", "")
+
+        self.context_manager.add_assistant_message(final_response)
         yield AgentEvent.agent_end(final_response)
 
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
         """给定消息历史，运行一轮 agent，返回一条消息"""
-        messages = [{"role": "user", "content": "Hey."}]
         response_text = ""
         # client 返回的是 llm client events，这里接收到之后，要转换为 agent event
-        async for event in self.client.chat_completion(messages, True):
+        async for event in self.client.chat_completion(
+            self.context_manager.get_messages(), True
+        ):
             if event.type == StreamEventType.TEXT_DELTA:
                 if event.text_delta:
                     content = event.text_delta.content
