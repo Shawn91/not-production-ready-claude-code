@@ -21,7 +21,7 @@ class MessageItem:
 
 class ContextManager:
     def __init__(self):
-        self._system_prompt = get_system_prompt
+        self._system_prompt = get_system_prompt()
         self._model_name = ""
         self._messages: list[MessageItem] = []
 

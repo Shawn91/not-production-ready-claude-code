@@ -58,8 +58,8 @@ async def run(messages: list[dict[str, Any]]):
         print(event)
 
 
-@click.command()
-@click.argument("prompt", required=False)
+# @click.command()
+# @click.argument("prompt", required=False)
 def main(prompt: str | None = None):
     cli = CLI()
     messages = (
@@ -75,4 +75,4 @@ def main(prompt: str | None = None):
 
 
 if __name__ == "__main__":
-    main()
+    main(prompt="read main.py")
