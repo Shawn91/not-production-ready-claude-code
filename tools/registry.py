@@ -34,7 +34,7 @@ class ToolRegistry:
         """返回所有 tools 的 openai schema"""
         return [t.to_openai_schema() for t in self.get_tools()]
 
-    async def invoke(self, name: str, params: dict[str, Any], cwd: Path):
+    async def invoke(self, name: str, params: dict[str, Any], cwd: Path) -> ToolResult:
         """调用一个 tool"""
         tool = self.get(name)
         if tool is None:
@@ -52,7 +52,7 @@ class ToolRegistry:
             result = await tool.execute(invocation)
         except Exception as e:
             logger.error(f"Error invoking tool {name}: {e}")
-            return ToolResult.error_result(
+            result = ToolResult.error_result(
                 f"Error invoking tool {name}: {e}", metadata={"tool_name": name}
             )
         return result

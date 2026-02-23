@@ -43,6 +43,12 @@ class ToolResult:
     def success_result(cls, output: str, **kwargs: Any):
         return cls(success=True, output=output, error=None, **kwargs)
 
+    def to_model_output(self) -> str:
+        """根据工具执行结果决定输出内容"""
+        if self.success:
+            return self.output
+        return f"Error: {self.error}\nOutput: {self.output}"
+
 
 @dataclass
 class ToolConfirmation:

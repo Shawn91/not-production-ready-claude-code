@@ -5,7 +5,15 @@ from typing import Any, AsyncGenerator
 from dotenv import load_dotenv
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 
-from client.response import StreamEvent, StreamEventType, TextDelta, TokenUsage
+from client.response import (
+    StreamEvent,
+    StreamEventType,
+    TextDelta,
+    TokenUsage,
+    ToolCall,
+    ToolCallDelta,
+    parse_tool_call_arguments,
+)
 
 load_dotenv()
 
@@ -98,13 +106,17 @@ class LLMClient:
         response = await client.chat.completions.create(**kwargs)
         usage: TokenUsage | None = None
         finish_reason: str | None = None
+        # ai 返回结果中定义的 tool_calls 数据结构。作为key的整数是 index
+        tool_calls: dict[int, dict[str, Any]] = {}
         async for chunk in response:
             if hasattr(chunk, "usage") and chunk.usage:
                 usage = TokenUsage(
                     prompt_tokens=chunk.usage.prompt_tokens,
                     completion_tokens=chunk.usage.completion_tokens,
                     total_tokens=chunk.usage.total_tokens,
-                    cached_tokens=chunk.usage.prompt_tokens_details.cached_tokens,
+                    cached_tokens=chunk.usage.prompt_tokens_details.cached_tokens
+                    if chunk.usage.prompt_tokens_details
+                    else 0,
                 )
             if not chunk.choices:
                 continue
@@ -119,6 +131,57 @@ class LLMClient:
                     text_delta=TextDelta(delta.content),
                     finish_reason=finish_reason,
                 )
+
+            if delta.tool_calls:
+                for tool_call_delta in delta.tool_calls:
+                    idx = tool_call_delta.index
+                    # AI返回的一个完整的 tool call 信息往往分成多个 chunks返回，第一个chunk包含id/name，后续chunks包含arguments
+                    # 所以要对chunks进行拼接，才能拿到完整的一个 tool call信息
+                    if idx not in tool_calls:
+                        tool_calls[idx] = {
+                            "id": tool_call_delta.id,
+                            "name": "",
+                            "arguments": "",  # ai 返回的是转换为字符串的 arguments
+                        }
+
+                    if tool_call_delta.id:
+                        tool_calls[idx]["id"] = tool_call_delta.id
+
+                    if tool_call_delta.function:
+                        fn = tool_call_delta.function
+                        if fn.name:
+                            previous_name = tool_calls[idx]["name"]
+                            tool_calls[idx]["name"] = fn.name
+                            # 首次拿到 tool name 时，才对外 emit tool call start 事件
+                            if not previous_name:
+                                yield StreamEvent(
+                                    type=StreamEventType.TOOL_CALL_START,
+                                    tool_call_delta=ToolCallDelta(
+                                        call_id=tool_calls[idx]["id"],
+                                        name=fn.name,
+                                    ),
+                                )
+
+                        if fn.arguments:
+                            tool_calls[idx]["arguments"] += fn.arguments
+                            yield StreamEvent(
+                                type=StreamEventType.TOOL_CALL_DELTA,
+                                tool_call_delta=ToolCallDelta(
+                                    call_id=tool_calls[idx]["id"],
+                                    name=tool_calls[idx]["name"] or fn.name,
+                                    arguments_delta=fn.arguments,
+                                ),
+                            )
+        for idx, tool_call in tool_calls.items():
+            yield StreamEvent(
+                type=StreamEventType.TOOL_CALL_COMPLETE,
+                tool_call=ToolCall(
+                    call_id=tool_call["id"],
+                    name=tool_call["name"],
+                    arguments=parse_tool_call_arguments(tool_call["arguments"]),
+                ),
+            )
+
         yield StreamEvent(
             type=StreamEventType.MESSAGE_COMPLETE,
             finish_reason=finish_reason,
@@ -134,6 +197,18 @@ class LLMClient:
         text_delta = None
         if message.content:
             text_delta = TextDelta(content=message.content)
+
+        tool_calls: list[ToolCall] = []
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                tool_calls.append(
+                    ToolCall(
+                        call_id=tool_call["id"],
+                        name=tool_call["name"],
+                        arguments=parse_tool_call_arguments(tool_call["arguments"]),
+                    )
+                )
+
         if response.usage:
             usage = TokenUsage(
                 prompt_tokens=response.usage.prompt_tokens,

@@ -54,12 +54,12 @@ class CLI:
 async def run(messages: list[dict[str, Any]]):
     client = LLMClient()
     messages = [{"role": "user", "content": "Hello"}]
-    async for event in client.chat_completion(messages, True):
+    async for event in client.chat_completion(messages):
         print(event)
 
 
-# @click.command()
-# @click.argument("prompt", required=False)
+@click.command()
+@click.argument("prompt", required=False)
 def main(prompt: str | None = None):
     cli = CLI()
     messages = (
@@ -75,4 +75,4 @@ def main(prompt: str | None = None):
 
 
 if __name__ == "__main__":
-    main(prompt="read main.py")
+    main()
