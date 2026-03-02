@@ -16,3 +16,18 @@ def is_binary_file(path: Path):
             return b"\x00" in file.read(8192)
     except (OSError, IOError):
         return False
+
+
+def display_path_rel_to_cwd(path: str, cwd: str | Path | None) -> str:
+    try:
+        p = Path(path)
+    except Exception:
+        return path
+
+    if cwd:
+        try:
+            return str(p.relative_to(cwd))
+        except ValueError:
+            pass
+
+    return str(p)

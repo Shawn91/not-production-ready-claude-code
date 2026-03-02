@@ -89,7 +89,7 @@ class ReadFileTool(Tool):
             metadata_lines = []
             if params.offset > 1 or end_line_idx < len(lines):
                 metadata_lines.append(
-                    f"SHowing lines {params.offset}-{end_line_idx} of {len(lines)}"
+                    f"SHowing lines {params.offset}-{end_line_idx} of {len(lines)}\n\n"
                 )
             if metadata_lines:
                 header = " | ".join(metadata_lines) + "\n\n"

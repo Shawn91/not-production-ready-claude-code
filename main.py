@@ -22,6 +22,14 @@ class CLI:
             self.agent = agent
             return await self._process_message(message)
 
+    def _get_tool_kind(self, tool_name: str) -> str | None:
+        if not self.agent:
+            return None
+        tool = self.agent.tool_registry.get(tool_name)
+        if not tool:
+            return None
+        return tool.kind.value
+
     async def _process_message(self, message: str) -> str | None:
         """
         正常情况下，返回字符串（AI最终的回答）。如果返回 None，说明出现意料外的问题
@@ -34,6 +42,7 @@ class CLI:
         assistant_streaming = False
         final_response: str | None = None
         async for event in self.agent.run(message):
+            print(event)
             if event.type == AgentEventType.TEXT_DELTA:
                 content = event.data.get("content", "")
                 if not assistant_streaming:
@@ -50,15 +59,24 @@ class CLI:
                 console.print(f"\n[error]Error: {error}")
             elif event.type == AgentEventType.TOOL_CALL_START:
                 tool_name = event.data.get("name", "unknown")
-                tool = self.agent.tool_registry.get(tool_name)
-                if not tool:
-                    return None
-                tool_kind = tool.kind.value
+                tool_kind = self._get_tool_kind(tool_name)
                 self.tui.tool_call_start(
                     call_id=event.data.get("call_id", ""),
                     name=tool_name,
                     tool_kind=tool_kind,
                     arguments=event.data.get("arguments", {}),
+                )
+            elif event.type == AgentEventType.TOOL_CALL_COMPLETE:
+                tool_name = event.data.get("name", "unknown")
+                self.tui.tool_call_complete(
+                    call_id=event.data.get("call_id", ""),
+                    name=tool_name,
+                    tool_kind=self._get_tool_kind(tool_name),
+                    success=event.data.get("success", False),
+                    output=event.data.get("output", ""),
+                    error=event.data.get("error", ""),
+                    metadata=event.data.get("metadata", {}),
+                    truncated=event.data.get("truncated", False),
                 )
 
         return final_response
