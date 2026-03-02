@@ -142,6 +142,19 @@ class TUI:
         self.console.print()
         self.console.print(panel)
 
+    def print_welcome(self, title: str, lines: list[str]) -> None:
+        body = "\n".join(lines)
+        self.console.print(
+            Panel(
+                Text(body, style="code"),
+                title=Text(title, style="highlight"),
+                title_align="left",
+                border_style="border",
+                box=box.ROUNDED,
+                padding=(1, 2),
+            )
+        )
+
     def _extract_read_file_code(self, text: str) -> tuple[int, str]:
         """ReadFileTool 提取的文本内容不是原始内容，而是提取后又做了一些格式化，
         本方法用于将格式化后的文本还原为原始内容
