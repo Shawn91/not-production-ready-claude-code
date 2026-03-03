@@ -1,26 +1,21 @@
-from pathlib import Path
 from typing import AsyncGenerator
 
 from agent.events import AgentEvent, AgentEventType
-from client.llm_client import LLMClient
+from agent.session import Session
 from client.response import StreamEventType, ToolCall, ToolResultMessage
 from config.config import Config
-from context.manager import ContextManager
-from tools.registry import create_default_tool_registry
 
 
 class Agent:
     def __init__(self, config: Config):
-        self.client = LLMClient(config=config)
-        self.context_manager = ContextManager(config=config)
-        self.tool_registry = create_default_tool_registry()
         self.config = config
+        self.session = Session(config=config)
 
     async def run(self, message: str):
-        """给定消息历史，运行一轮 agent，返回一条消息。此外，还要负责发送事件消息等额外工作"""
+        """给定消息历史，运行一轮 agent。此外，还要负责发送事件消息等额外工作"""
         # 向外通知 agent 启动了
         yield AgentEvent.agent_start(message)
-        self.context_manager.add_user_message(message)
+        self.session.context_manager.add_user_message(message)
 
         final_response = ""
         async for event in self._agentic_loop():
@@ -28,7 +23,7 @@ class Agent:
             if event.type == AgentEventType.TEXT_COMPLETE:
                 final_response = event.data.get("content", "")
 
-        self.context_manager.add_assistant_message(final_response)
+        self.session.context_manager.add_assistant_message(final_response)
         yield AgentEvent.agent_end(final_response)
 
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
@@ -39,13 +34,15 @@ class Agent:
         这就是所谓“一轮”
         """
         for turn_num in range(self.config.max_turns):
+            # 将 session 内部的 turn 计数 +1
+            self.session.increment_turn()
             response_text = ""
-            tool_schemas = self.tool_registry.get_schemas()
+            tool_schemas = self.session.tool_registry.get_schemas()
             tool_calls: list[ToolCall] = []
 
             # client 返回的是 llm client events，这里接收到之后，要转换为 agent event
-            async for event in self.client.chat_completion(
-                self.context_manager.get_messages(),
+            async for event in self.session.client.chat_completion(
+                self.session.context_manager.get_messages(),
                 tools=tool_schemas if tool_schemas else None,
                 stream=True,
             ):
@@ -61,7 +58,7 @@ class Agent:
                 elif event.type == StreamEventType.ERROR:
                     yield AgentEvent.agent_error(event.error or "Unknown error")
 
-            self.context_manager.add_assistant_message(
+            self.session.context_manager.add_assistant_message(
                 response_text,
                 [
                     {
@@ -89,7 +86,7 @@ class Agent:
                     name=tool_call.name,
                     arguments=tool_call.arguments,
                 )
-                result = await self.tool_registry.invoke(
+                result = await self.session.tool_registry.invoke(
                     name=tool_call.name, params=tool_call.arguments, cwd=self.config.cwd
                 )
                 yield AgentEvent.tool_call_complete(
@@ -105,7 +102,7 @@ class Agent:
                     )
                 )
             for tool_result_message in tool_call_result_messages:
-                self.context_manager.add_tool_result(
+                self.session.context_manager.add_tool_result(
                     tool_result_message.tool_call_id, tool_result_message.content
                 )
 
@@ -114,5 +111,5 @@ class Agent:
 
     # Agent class 退出后，自动清理与 llm client 的连接
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.client:
-            await self.client.close()
+        if self.session and self.session.client:
+            await self.session.client.close()
