@@ -94,7 +94,16 @@ class LLMClient:
                     )
                     return
             except APIError as e:
-                yield StreamEvent(type=StreamEventType.ERROR, error=f"API error {e}")
+                detail = getattr(e, "body", None) or getattr(e, "response", None)
+                if detail:
+                    yield StreamEvent(
+                        type=StreamEventType.ERROR,
+                        error=f"API error {e} detail={detail}",
+                    )
+                else:
+                    yield StreamEvent(
+                        type=StreamEventType.ERROR, error=f"API error {e}"
+                    )
                 return
 
     async def _stream_response(

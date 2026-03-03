@@ -94,6 +94,7 @@ class TUI:
                 "limit",
             ],  # 对于 read_file tool，按照这个顺序显示参数
             "write_file": ["path", "create_directories", "content"],
+            "edit": ["path", "replace_all", "old_string", "new_string"],
         }
         ordered = []
         prefered = _PREFERED_ORDER.get(tool_name, [])

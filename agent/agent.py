@@ -1,3 +1,4 @@
+import json
 from typing import AsyncGenerator
 
 from agent.events import AgentEvent, AgentEventType
@@ -64,7 +65,10 @@ class Agent:
                     {
                         "id": tc.call_id,
                         "type": "function",
-                        "function": {"name": tc.name, "arguments": tc.arguments},
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments),
+                        },
                     }
                     for tc in tool_calls
                 ]
