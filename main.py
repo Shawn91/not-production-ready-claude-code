@@ -1,26 +1,28 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Any
 
 import click
 
 from agent.agent import Agent
-from agent.events import AgentEvent, AgentEventType
-from client.llm_client import LLMClient
+from agent.events import AgentEventType
+from config.config import Config
+from config.loader import load_config
 from ui.tui import TUI, get_console
+from utils.errors import ConfigError
 
 console = get_console()
 
 
 class CLI:
-    def __init__(self):
+    def __init__(self, config: Config):
         self.agent: Agent | None = None
-        self.tui = TUI(console)
+        self.tui = TUI(config, console)
+        self.config = config
 
     async def run_single(self, message) -> str | None:
         """启动时就要传入 message"""
-        async with Agent() as agent:
+        async with Agent(config=self.config) as agent:
             self.agent = agent
             return await self._process_message(message)
 
@@ -28,12 +30,12 @@ class CLI:
         self.tui.print_welcome(
             "AI Agent",
             lines=[
-                "model: gpt 5.2",
-                f"cwd: {Path.cwd()}",
+                f"model: {self.config.model_name}",
+                f"cwd: {self.config.cwd}",
                 "commands: /help /config /approval /model /exit",
             ],
         )
-        async with Agent() as agent:
+        async with Agent(config=self.config) as agent:
             self.agent = agent
             while True:
                 try:
@@ -69,7 +71,6 @@ class CLI:
         assistant_streaming = False
         final_response: str | None = None
         async for event in self.agent.run(message):
-            print(event)
             if event.type == AgentEventType.TEXT_DELTA:
                 content = event.data.get("content", "")
                 if not assistant_streaming:
@@ -83,7 +84,7 @@ class CLI:
                     assistant_streaming = False
             elif event.type == AgentEventType.AGENT_ERROR:
                 error = event.data.get("error", "Unknown error")
-                console.print(f"\n[error]Error: {error}")
+                console.print(f"\n[error]Error: {error}[/error]")
             elif event.type == AgentEventType.TOOL_CALL_START:
                 tool_name = event.data.get("name", "unknown")
                 tool_kind = self._get_tool_kind(tool_name)
@@ -109,22 +110,27 @@ class CLI:
         return final_response
 
 
-async def run(messages: list[dict[str, Any]]):
-    client = LLMClient()
-    messages = [{"role": "user", "content": "Hello"}]
-    async for event in client.chat_completion(messages):
-        print(event)
-
-
 @click.command()
 @click.argument("prompt", required=False)
-def main(prompt: str | None = None):
-    cli = CLI()
-    messages = (
-        [{"role": "user", "content": prompt}]
-        if prompt
-        else [{"role": "user", "content": "Hello"}]
-    )
+@click.option(
+    "--cwd",
+    "-c",
+    help="Current working directory",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+def main(prompt: str | None, cwd: Path | None):
+    try:
+        config = load_config(cwd=cwd)
+        config_errors = config.validate_config()
+        if config_errors:
+            for error in config_errors:
+                console.print(f"[error]{error}[/error]")
+            sys.exit(1)
+    except Exception as e:
+        raise ConfigError(f"Configuration Error: {e}")
+
+    cli = CLI(config=config)
+
     if prompt:
         result = asyncio.run(cli.run_single(prompt))
         # 如果是 None，说明出现意料外的问题，直接退出程序

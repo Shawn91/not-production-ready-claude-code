@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from config.config import Config
 from utils.paths import display_path_rel_to_cwd
 from utils.text import truncate_text
 
@@ -53,14 +54,19 @@ def get_console() -> Console:
 
 
 class TUI:
-    def __init__(self, console: Console | None = None):
+    def __init__(
+        self,
+        config: Config,
+        console: Console | None = None,
+    ):
         self.console = console or get_console()
+        self.config = config
         # 用于标记当前是否正在输出AI对话内容
         self._assistant_stream_open = False
         # 方便在命令行展示tool被调用时的参数
         self._tool_args_by_call_id: dict[str, dict[str, Any]] = {}
         # 当前工作目录
-        self.cwd = os.getcwd()
+        self.cwd = self.config.cwd
 
     def begin_assistant(self):
         """开始输出AI对话内容前，先输出格式化内容，提醒AI要开始输出了"""

@@ -4,15 +4,17 @@ from typing import AsyncGenerator
 from agent.events import AgentEvent, AgentEventType
 from client.llm_client import LLMClient
 from client.response import StreamEventType, ToolCall, ToolResultMessage
+from config.config import Config
 from context.manager import ContextManager
 from tools.registry import create_default_tool_registry
 
 
 class Agent:
-    def __init__(self):
-        self.client = LLMClient()
-        self.context_manager = ContextManager()
+    def __init__(self, config: Config):
+        self.client = LLMClient(config=config)
+        self.context_manager = ContextManager(config=config)
         self.tool_registry = create_default_tool_registry()
+        self.config = config
 
     async def run(self, message: str):
         """给定消息历史，运行一轮 agent，返回一条消息。此外，还要负责发送事件消息等额外工作"""
@@ -77,7 +79,7 @@ class Agent:
                 arguments=tool_call.arguments,
             )
             result = await self.tool_registry.invoke(
-                name=tool_call.name, params=tool_call.arguments, cwd=Path.cwd()
+                name=tool_call.name, params=tool_call.arguments, cwd=self.config.cwd
             )
             yield AgentEvent.tool_call_complete(
                 call_id=tool_call.call_id,

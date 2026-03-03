@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from config.config import Config
 from prompts.system import get_system_prompt
 from utils.text import count_tokens
 
@@ -25,16 +26,17 @@ class MessageItem:
 
 
 class ContextManager:
-    def __init__(self):
-        self._system_prompt = get_system_prompt()
-        self._model_name = ""
+    def __init__(self, config: Config):
+        self._system_prompt = get_system_prompt(config=config)
+        self.config = config
+        self._model_name = self.config.model_name or ""
         self._messages: list[MessageItem] = []
 
     def add_user_message(self, content: str) -> None:
         item = MessageItem(
             role="user",
             content=content,
-            token_count=count_tokens(content, self._model_name),
+            token_count=count_tokens(content, self._model_name or ""),
         )
         self._messages.append(item)
 

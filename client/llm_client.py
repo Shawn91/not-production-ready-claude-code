@@ -1,8 +1,6 @@
 import asyncio
-import os
 from typing import Any, AsyncGenerator
 
-from dotenv import load_dotenv
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 
 from client.response import (
@@ -14,20 +12,19 @@ from client.response import (
     ToolCallDelta,
     parse_tool_call_arguments,
 )
-
-load_dotenv()
+from config.config import Config
 
 
 class LLMClient:
-    def __init__(self):
+    def __init__(self, config: Config):
         self._client: AsyncOpenAI | None = None
         self._max_retries: int = 3
+        self.config = config
 
     def get_client(self) -> AsyncOpenAI:
         if self._client is None:
             self._client = AsyncOpenAI(
-                api_key=os.getenv("API_KEY"),
-                base_url="https://api.poe.com/v1",
+                api_key=self.config.api_key, base_url=self.config.base_url
             )
         return self._client
 
@@ -62,7 +59,7 @@ class LLMClient:
     ) -> AsyncGenerator[StreamEvent, None]:
         client = self.get_client()
         kwargs = {
-            "model": "poe/glm-5",
+            "model": self.config.model_name,
             "messages": messages,
             "stream": stream,
         }
