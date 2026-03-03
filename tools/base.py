@@ -8,6 +8,8 @@ from typing import Any
 # pydantic用于定义 tool 的 params，以及做参数的类型验证
 from pydantic import BaseModel, ValidationError
 
+from config.config import Config
+
 
 class ToolKind(str, Enum):
     READ = "read"
@@ -64,6 +66,7 @@ class ToolResult:
     truncated: bool = False
     # 写入或编辑一个文档时，用于存储哪些内容被修改了
     diff: FileDiff | None = None
+    exit_code: int | None = None
 
     @classmethod
     def error_result(cls, error: str, output: str = "", **kwargs: Any):
@@ -100,8 +103,8 @@ class Tool(abc.ABC):
     description: str = "Base tool"
     kind: ToolKind = ToolKind.READ
 
-    def __init__(self):
-        pass
+    def __init__(self, config: Config):
+        self.config = config
 
     @property
     def schema(self) -> dict[str, Any] | type[BaseModel]:

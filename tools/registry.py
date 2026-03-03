@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from config.config import Config
 from tools import get_all_builtin_tools
 from tools.base import Tool, ToolInvocation, ToolResult
 
@@ -58,9 +59,9 @@ class ToolRegistry:
         return result
 
 
-def create_default_tool_registry() -> ToolRegistry:
+def create_default_tool_registry(config: Config) -> ToolRegistry:
     """创建一个默认的 tool registry"""
     registry = ToolRegistry()
     for tool_class in get_all_builtin_tools():
-        registry.register(tool_class())
+        registry.register(tool_class(config=config))
     return registry
