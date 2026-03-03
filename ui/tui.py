@@ -67,6 +67,7 @@ class TUI:
         self._tool_args_by_call_id: dict[str, dict[str, Any]] = {}
         # 当前工作目录
         self.cwd = self.config.cwd
+        self._max_block_tokens = 2500
 
     def begin_assistant(self):
         """开始输出AI对话内容前，先输出格式化内容，提醒AI要开始输出了"""
@@ -92,6 +93,7 @@ class TUI:
                 "offset",
                 "limit",
             ],  # 对于 read_file tool，按照这个顺序显示参数
+            "write_file": ["path", "create_directories", "content"],
         }
         ordered = []
         prefered = _PREFERED_ORDER.get(tool_name, [])
@@ -110,6 +112,11 @@ class TUI:
         table.add_column(style="muted", justify="right", no_wrap=True)
         table.add_column(style="code", overflow="fold")
         for key, value in self._ordered_args(tool_name, args):
+            if isinstance(value, str):
+                if key in {"content", "old_string", "new_string"}:
+                    line_count = len(value.splitlines())
+                    byte_count = len(value.encode("utf-8", errors="replace"))
+                    value = f"<{line_count}> lines * {byte_count} bytes"
             table.add_row(key, value)
         return table
 
@@ -222,6 +229,7 @@ class TUI:
         output: str,  # tool call 的调用结果
         error: str | None,
         metadata: dict[str, Any],
+        diff: str | None,
         truncated: bool,
     ):
         border_style = f"tool.{tool_kind}" if tool_kind else "tool"
@@ -274,6 +282,15 @@ class TUI:
                 blocks.append(
                     Syntax(output_display, "text", theme="monokai", word_wrap=False)
                 )
+        elif name == "write_file" and success and diff:
+            output_line = output.strip() if output.strip() else "Completed"
+            blocks.append(Text(output_line, style="muted"))
+            diff_display = truncate_text(
+                diff,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            blocks.append(Syntax(diff_display, "diff", theme="monokai", word_wrap=True))
 
         if truncated:
             blocks.append(Text("note: tool output was truncated", style="warning"))

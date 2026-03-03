@@ -1,4 +1,5 @@
 import abc
+import difflib
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -26,6 +27,33 @@ class ToolInvocation:
 
 
 @dataclass
+class FileDiff:
+    path: Path
+    old_content: str
+    new_content: str
+
+    is_new_file: bool = False  # 当前是否是创建文件
+    is_deletion: bool = False  # 当前是否是删除文件
+
+    def to_diff(self) -> str:
+        old_lines = self.old_content.splitlines(keepends=True)
+        new_lines = self.new_content.splitlines(keepends=True)
+
+        if old_lines and not old_lines[-1].endswith("\n"):
+            old_lines[-1] += "\n"
+        if new_lines and not new_lines[-1].endswith("\n"):
+            new_lines[-1] += "\n"
+
+        # 如果是创建新文件，则给一个默认名字给“旧文件”（用于展示）
+        old_name = "/dev/null" if self.is_new_file else str(self.path)
+        new_name = "/dev/null" if self.is_deletion else str(self.path)
+        diff = difflib.unified_diff(
+            old_lines, new_lines, fromfile=old_name, tofile=new_name
+        )
+        return "".join(diff)
+
+
+@dataclass
 class ToolResult:
     """定义一个 tool 的执行结果"""
 
@@ -34,6 +62,8 @@ class ToolResult:
     error: str | None = None
     metadata: dict[str, Any] | None = field(default_factory=dict)
     truncated: bool = False
+    # 写入或编辑一个文档时，用于存储哪些内容被修改了
+    diff: FileDiff | None = None
 
     @classmethod
     def error_result(cls, error: str, output: str = "", **kwargs: Any):
