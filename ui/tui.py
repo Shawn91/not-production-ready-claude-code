@@ -88,14 +88,12 @@ class TUI:
     def _ordered_args(self, tool_name: str, args: dict[str, Any]) -> list[tuple]:
         """用于将一个 tool 函数的所有参数按照特定顺序排序"""
         _PREFERED_ORDER = {
-            "read_file": [
-                "path",
-                "offset",
-                "limit",
-            ],  # 对于 read_file tool，按照这个顺序显示参数
+            # 对于 read_file tool，按照这个顺序显示参数
+            "read_file": ["path", "offset", "limit"],
             "write_file": ["path", "create_directories", "content"],
             "edit": ["path", "replace_all", "old_string", "new_string"],
             "shell": ["command", "timeout", "cwd"],
+            "list_dir": ["path", "include_hidden"],
         }
         ordered = []
         prefered = _PREFERED_ORDER.get(tool_name, [])
@@ -119,6 +117,8 @@ class TUI:
                     line_count = len(value.splitlines())
                     byte_count = len(value.encode("utf-8", errors="replace"))
                     value = f"<{line_count}> lines * {byte_count} bytes"
+            if isinstance(value, bool):
+                value = str(value)
             table.add_row(key, value)
         return table
 
@@ -316,6 +316,42 @@ class TUI:
                     word_wrap=True,
                 )
             )
+        elif name == "list_dir" and success:
+            entries = metadata.get("entries")
+            path = metadata.get("path")
+            summary = []
+            if isinstance(path, str):
+                summary.append(path)
+
+            if isinstance(entries, int):
+                summary.append(f"{entries} entries")
+
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="muted"))
+
+            output_display = truncate_text(
+                output,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            blocks.append(
+                Syntax(output_display, "text", theme="monokai", word_wrap=True)
+            )
+
+        if error and not success:
+            blocks.append(Text(error, style="error"))
+
+            output_display = truncate_text(
+                output,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            if output_display.strip():
+                blocks.append(
+                    Syntax(output_display, "text", theme="monokai", word_wrap=True)
+                )
+            else:
+                blocks.append(Text("no output", style="muted"))
 
         if truncated:
             blocks.append(Text("note: tool output was truncated", style="warning"))
