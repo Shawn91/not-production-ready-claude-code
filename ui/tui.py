@@ -121,6 +121,8 @@ class TUI:
                     value = f"<{line_count}> lines * {byte_count} bytes"
             if isinstance(value, bool):
                 value = str(value)
+            if isinstance(value, int):
+                value = str(value)
             table.add_row(key, value)
         return table
 
@@ -363,6 +365,49 @@ class TUI:
             matches = metadata.get("matches")
             if isinstance(matches, int):
                 blocks.append(Text(f"{matches} matches", style="muted"))
+
+            output_display = truncate_text(
+                output,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            blocks.append(
+                Syntax(output_display, "text", theme="monokai", word_wrap=True)
+            )
+        elif name == "web_search" and success:
+            results = metadata.get("results")
+            query = args.get("query")
+            summary = []
+            if isinstance(query, str):
+                summary.append(query)
+            if isinstance(results, int):
+                summary.append(f"{results} results")
+
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="muted"))
+
+            output_display = truncate_text(
+                output,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            blocks.append(
+                Syntax(output_display, "text", theme="monokai", word_wrap=True)
+            )
+        elif name == "web_fetch" and success:
+            status_code = metadata.get("status_code")
+            content_length = metadata.get("content_length")
+            url = args.get("url")
+            summary = []
+            if isinstance(status_code, int):
+                summary.append(str(status_code))
+            if isinstance(content_length, int):
+                summary.append(f"{content_length} bytes")
+            if isinstance(url, str):
+                summary.append(url)
+
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="muted"))
 
             output_display = truncate_text(
                 output,
