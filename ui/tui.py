@@ -94,6 +94,8 @@ class TUI:
             "edit": ["path", "replace_all", "old_string", "new_string"],
             "shell": ["command", "timeout", "cwd"],
             "list_dir": ["path", "include_hidden"],
+            "grep": ["path", "case_insensitive", "pattern"],
+            "glob": ["path", "pattern"],
         }
         ordered = []
         prefered = _PREFERED_ORDER.get(tool_name, [])
@@ -328,6 +330,39 @@ class TUI:
 
             if summary:
                 blocks.append(Text(" • ".join(summary), style="muted"))
+
+            output_display = truncate_text(
+                output,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            blocks.append(
+                Syntax(output_display, "text", theme="monokai", word_wrap=True)
+            )
+        elif name == "grep" and success:
+            matches = metadata.get("matches")
+            files_searched = metadata.get("files_searched")
+            summary = []
+            if isinstance(matches, int):
+                summary.append(f"{matches} matches")
+            if isinstance(files_searched, int):
+                summary.append(f"searched {files_searched} files")
+
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="muted"))
+
+            output_display = truncate_text(
+                output,
+                model=self.config.model_name or "",
+                max_tokens=self._max_block_tokens,
+            )
+            blocks.append(
+                Syntax(output_display, "text", theme="monokai", word_wrap=True)
+            )
+        elif name == "glob" and success:
+            matches = metadata.get("matches")
+            if isinstance(matches, int):
+                blocks.append(Text(f"{matches} matches", style="muted"))
 
             output_display = truncate_text(
                 output,
