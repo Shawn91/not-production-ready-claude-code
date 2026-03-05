@@ -17,7 +17,7 @@ class ListDirParams(BaseModel):
 
 
 class ListDirTool(Tool):
-    name = "list_dir"
+    _name = "list_dir"
     description = "List contents of a directory"
     kind = ToolKind.READ
 

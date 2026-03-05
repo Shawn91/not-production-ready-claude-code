@@ -27,7 +27,7 @@ class MemoryTool(Tool):
 
     """
 
-    name = "memory"
+    _name = "memory"
     description = "Store and retrieve persistent memory. Use this to remember user preferences, important context or notes."
     kind = ToolKind.MEMORY
 

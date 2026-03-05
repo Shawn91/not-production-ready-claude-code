@@ -40,7 +40,7 @@ class ShellParams(BaseModel):
 
 
 class ShellTool(Tool):
-    name = "shell"
+    _name = "shell"
     kind = ToolKind.SHELL
     description = "Execute a shell command. Use this for running system commands, scripts and CLI tools."
 

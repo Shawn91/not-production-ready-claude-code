@@ -23,7 +23,7 @@ class ReadFileParams(BaseModel):
 
 
 class ReadFileTool(Tool):
-    name = "read_file"
+    _name = "read_file"
     description = (
         "Read the contents of a text file. Return the file content with line numbers. "
         "For large files, use offset and limit to read only a portion of the file. "

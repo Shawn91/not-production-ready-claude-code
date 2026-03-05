@@ -20,7 +20,7 @@ class GrepParams(BaseModel):
 
 
 class GrepTool(Tool):
-    name = "grep"
+    _name = "grep"
     description = "Search for a regex pattern in file contents. Returns matching lines with file paths and line numbers."
     kind = ToolKind.READ
 

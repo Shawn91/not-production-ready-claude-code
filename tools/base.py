@@ -99,12 +99,16 @@ class ToolConfirmation:
 
 
 class Tool(abc.ABC):
-    name: str = "base_tool"
+    _name: str = "base_tool"
     description: str = "Base tool"
     kind: ToolKind = ToolKind.READ
 
     def __init__(self, config: Config):
         self.config = config
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     @property
     def schema(self) -> dict[str, Any] | type[BaseModel]:

@@ -12,7 +12,7 @@ class WebSearchParams(BaseModel):
 
 
 class WebSearchTool(Tool):
-    name = "web_search"
+    _name = "web_search"
     description = "Search the web for information. Returns search results with titles, URLs and snippets"
     kind = ToolKind.NETWORK
 
