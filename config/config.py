@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 load_dotenv()
 
@@ -15,6 +15,27 @@ class ShellEnvironmentPolicy(BaseModel):
     )
     # 针对AI返回shell command这个场景，可以设置一些环境变量，方便/限制AI生成的 commands
     set_vars: dict[str, str] = Field(default_factory=dict)
+
+
+class MCPServerConfig(BaseModel):
+    enabled: bool = True
+    startup_timeout_sec: float = 10
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    cwd: Path | None = None
+
+    url: str | None = None
+
+    @model_validator(mode="after")
+    def validate_transport(self) -> "MCPServerConfig":
+        has_command = self.command is not None
+        has_url = self.url is not None
+        if not has_command and not has_url:
+            raise ValueError("Either command or url must be set")
+        if has_command and has_url:
+            raise ValueError("Only one of command or url can be set")
+        return self
 
 
 class ModelConfig(BaseModel):
@@ -34,6 +55,8 @@ class Config(BaseModel):
     allowed_tools: list[str] | None = Field(
         None, description="If set, only these tools will be available to the agent"
     )
+    # key 是 MCP 服务器的名称，value 是 MCP 服务器的配置
+    mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
     # 这两个 instructions 会写入 agent.md 中，并最终合并到 system prompt 中
     developer_instructions: str | None = None
     user_instructions: str | None = None
