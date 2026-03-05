@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import tomli
-from platformdirs import user_config_dir
+from platformdirs import user_config_dir, user_data_dir
 
 from config.config import Config
 from utils.errors import ConfigError
@@ -22,6 +22,11 @@ def get_config_dir() -> Path:
 def get_system_config_path() -> Path:
     """返回全局的，操作系统级别的本项目config文件路径"""
     return get_config_dir() / CONFIG_FILE_NAME
+
+
+def get_data_dir() -> Path:
+    """用于存储 memory 内容。这是全局性的，所有 memory 内容都会存储在这里。"""
+    return Path(user_data_dir("ai-agent"))
 
 
 def _parse_toml(path: Path):
