@@ -30,7 +30,10 @@ class Config(BaseModel):
         default_factory=ShellEnvironmentPolicy
     )
     max_turns: int = 100  # 一个聊天记录中，最多可以有多少轮对话
-
+    # 仅限 subagent tool 才需要这个属性
+    allowed_tools: list[str] | None = Field(
+        None, description="If set, only these tools will be available to the agent"
+    )
     # 这两个 instructions 会写入 agent.md 中，并最终合并到 system prompt 中
     developer_instructions: str | None = None
     user_instructions: str | None = None
@@ -70,3 +73,6 @@ class Config(BaseModel):
         if not self.base_url:
             errors.append("BASE URL is not set")
         return errors
+
+    def to_dict(self):
+        return self.model_dump(mode="json")

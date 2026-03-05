@@ -5,13 +5,15 @@ from typing import Any
 from config.config import Config
 from tools import get_all_builtin_tools
 from tools.base import Tool, ToolInvocation, ToolResult
+from tools.subagent import SubagentTool, get_default_subagent_definitions
 
 logger = logging.getLogger(__name__)
 
 
 class ToolRegistry:
-    def __init__(self):
+    def __init__(self, config: Config):
         self._tools: dict[str, Tool] = {}
+        self.config = config
 
     def register(self, tool: Tool):
         if tool.name in self._tools:
@@ -29,7 +31,10 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def get_tools(self) -> list[Tool]:
-        return list(self._tools.values())
+        tools = list(self._tools.values())
+        if self.config.allowed_tools:
+            tools = [t for t in tools if t.name in self.config.allowed_tools]
+        return tools
 
     def get_schemas(self) -> list[dict[str, Any]]:
         """返回所有 tools 的 openai schema"""
@@ -61,7 +66,9 @@ class ToolRegistry:
 
 def create_default_tool_registry(config: Config) -> ToolRegistry:
     """创建一个默认的 tool registry"""
-    registry = ToolRegistry()
+    registry = ToolRegistry(config=config)
     for tool_class in get_all_builtin_tools():
         registry.register(tool_class(config=config))
+    for subagent_def in get_default_subagent_definitions():
+        registry.register(SubagentTool(config=config, definition=subagent_def))
     return registry
