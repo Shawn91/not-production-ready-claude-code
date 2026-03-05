@@ -16,7 +16,7 @@ class GlobParams(BaseModel):
 
 class GlobTool(Tool):
     _name = "glob"
-    description = (
+    _description = (
         "Find files matching a glob pattern. Supports ** for recursive matching."
     )
     kind = ToolKind.READ

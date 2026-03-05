@@ -13,7 +13,7 @@ class WebSearchParams(BaseModel):
 
 class WebSearchTool(Tool):
     _name = "web_search"
-    description = "Search the web for information. Returns search results with titles, URLs and snippets"
+    _description = "Search the web for information. Returns search results with titles, URLs and snippets"
     kind = ToolKind.NETWORK
 
     @property

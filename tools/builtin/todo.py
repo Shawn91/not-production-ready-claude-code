@@ -20,7 +20,7 @@ class TodosTool(Tool):
     """每个 session 只能有一个未完成的 todo list"""
 
     _name = "todos"
-    description = "Manage a task list for the current session. Use this to track progress on multi-step tasks."
+    _description = "Manage a task list for the current session. Use this to track progress on multi-step tasks."
     kind = ToolKind.MEMORY
 
     def __init__(self, config: Config):

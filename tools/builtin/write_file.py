@@ -17,7 +17,7 @@ class WriteFileParams(BaseModel):
 
 class WriteFileTool(Tool):
     _name = "write_file"
-    description = (
+    _description = (
         "Write content to a file. Creates the file if it doesn't exist, "
         "or overwrites if it does. Parent directories are created automatically. "
         "Use this for creating new files or completely replacing file contents. "

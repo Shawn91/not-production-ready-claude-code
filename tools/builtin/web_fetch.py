@@ -15,7 +15,7 @@ class WebFetchParams(BaseModel):
 
 class WebFetchTool(Tool):
     _name = "web_fetch"
-    description = "Fetch content from a URL. Returns the response body as text"
+    _description = "Fetch content from a URL. Returns the response body as text"
     kind = ToolKind.NETWORK
 
     @property

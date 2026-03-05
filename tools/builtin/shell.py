@@ -42,7 +42,7 @@ class ShellParams(BaseModel):
 class ShellTool(Tool):
     _name = "shell"
     kind = ToolKind.SHELL
-    description = "Execute a shell command. Use this for running system commands, scripts and CLI tools."
+    _description = "Execute a shell command. Use this for running system commands, scripts and CLI tools."
 
     @property
     def schema(self) -> type[BaseModel]:

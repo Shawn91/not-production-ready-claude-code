@@ -33,7 +33,7 @@ class EditParams(BaseModel):
 
 class EditTool(Tool):
     _name = "edit"
-    description = (
+    _description = (
         "Edit a file by replacing text. The old_string must match exactly "
         "(including whitespace and indentation) and must be unique in the file "
         "unless replace_all is true. Use this for precise, surgical edits. "
