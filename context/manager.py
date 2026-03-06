@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from client.response import TokenUsage
@@ -15,6 +16,7 @@ class MessageItem:
     token_count: int | None = None
     tool_call_id: str | None = None
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    pruned_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"role": self.role}
@@ -28,6 +30,12 @@ class MessageItem:
 
 
 class ContextManager:
+    # 必须要同时满足以下2个条件，才会 prune tool outputs
+    # 1. tool outputs 占用的 token 数量超过 PRUNE_PROTECT_TOKENS
+    # 2. 如果 prune，至少能删除 PRUNE_MINIMUM_TOKENS 个 token
+    PRUNE_PROTECT_TOKENS = 40000
+    PRUNE_MINIMUM_TOKENS = 20000
+
     def __init__(
         self,
         config: Config,
@@ -157,3 +165,32 @@ class ContextManager:
             token_count=count_tokens(continue_content, self._model_name),
         )
         self._messages.append(continue_item)
+
+    def prune_tool_outputs(self) -> int:
+        """删除一些 tool 的输出，以减少 context 占用。返回值是删除的 token 数量。
+        删除策略是删除旧消息，保留最近的
+        """
+        if len([m for m in self._messages if m.role == "user"]) < 2:
+            return 0
+        total_tokens = 0
+        pruned_tokens = 0
+        to_prune = []
+        # 从新到旧遍历消息
+        for msg in reversed(self._messages):
+            if msg.role == "tool" and msg.tool_call_id:
+                # 有一条消息已经 pruned，说明更旧的肯定也已经都 prune 过了，不用再检查了
+                if msg.pruned_at:
+                    break
+                tokens = msg.token_count or count_tokens(msg.content, self._model_name)
+                total_tokens += tokens
+
+                if total_tokens > self.PRUNE_PROTECT_TOKENS:
+                    pruned_tokens += tokens
+                    to_prune.append(msg)
+        if pruned_tokens < self.PRUNE_MINIMUM_TOKENS:
+            return 0
+        for msg in to_prune:
+            msg.content = "[Old tool result content cleared]"
+            msg.token_count = count_tokens(msg.content, self._model_name)
+            msg.pruned_at = datetime.now()
+        return pruned_tokens

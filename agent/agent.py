@@ -50,6 +50,7 @@ class Agent:
 
             tool_schemas = self.session.tool_registry.get_schemas()
             tool_calls: list[ToolCall] = []
+            # usage 用于统计 token 用量。超出后会触发 compress 和 prune 操作
             usage: TokenUsage | None = None
 
             # client 返回的是 llm client events，这里接收到之后，要转换为 agent event
@@ -96,6 +97,7 @@ class Agent:
                 if usage:
                     self.session.context_manager.set_latest_usage(usage)
                     self.session.context_manager.add_usage(usage)
+                self.session.context_manager.prune_tool_outputs()
                 return
 
             # 依次执行所有的 tools
@@ -128,7 +130,7 @@ class Agent:
             if usage:
                 self.session.context_manager.set_latest_usage(usage)
                 self.session.context_manager.add_usage(usage)
-
+                self.session.context_manager.prune_tool_outputs()
         yield AgentEvent.agent_error(f"Maximum turns ({self.config.max_turns}) reached")
 
     async def __aenter__(self) -> "Agent":
