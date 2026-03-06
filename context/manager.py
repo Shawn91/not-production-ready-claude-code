@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from client.response import TokenUsage
 from config.config import Config
 from prompts.system import get_system_prompt
 from tools.base import Tool
@@ -39,6 +40,13 @@ class ContextManager:
         self.config = config
         self._model_name = self.config.model_name or ""
         self._messages: list[MessageItem] = []
+        # 假设完整聊天记录有 A、B、C三条消息。其中 A 和 C 是 user message，B 是 assistant message。
+        # 那么 latest usage 表示 ABC 三条消息的 token 数量之和。
+        # 而 total usage 是 A 的 token 数 + AB token 数 + ABC token 数之和。
+        # 因为发送消息时，会带上历史消息，所以发送 B 时，A 又计算了一次token数。发送 C 时，AB 又计算了一次token数。
+        # total usage 作用是为了统计花费的成本。latest usage 是为了判断是否需要做 context compacting。
+        self._latest_usage: TokenUsage | None = None
+        self._total_usage: TokenUsage | None = None
 
     def add_user_message(self, content: str) -> None:
         item = MessageItem(
@@ -79,3 +87,73 @@ class ContextManager:
             )
         messages.extend([item.to_dict() for item in self._messages])
         return messages
+
+    def set_latest_usage(self, usage: TokenUsage) -> None:
+        self._latest_usage = usage
+
+    def add_usage(self, usage: TokenUsage) -> None:
+        if self._total_usage is None:
+            self._total_usage = usage
+        else:
+            self._total_usage += usage
+
+    def needs_compression(self) -> bool:
+        if not self._latest_usage:
+            return False
+        context_limit = self.config.model.context_window
+        current_tokens = self._latest_usage.total_tokens
+        return current_tokens > context_limit * 0.8
+
+    def replace_with_summary(self, summary: str) -> None:
+        self._messages = []
+        continuation_content = f"""# Context Restoration (Previous Session Compacted)
+
+            The previous conversation was compacted due to context length limits. Below is a detailed summary of the work done so far.
+
+            **CRITICAL: Actions listed under "COMPLETED ACTIONS" are already done. DO NOT repeat them.**
+
+            ---
+
+            {summary}
+
+            ---
+
+            Resume work from where we left off. Focus ONLY on the remaining tasks."""
+
+        summary_item = MessageItem(
+            role="user",
+            content=continuation_content,
+            token_count=count_tokens(
+                continuation_content, model=self.config.model.name
+            ),
+        )
+        self._messages.append(summary_item)
+
+        # 人工构造一个假的针对上面的 summary 的 AI 回复。这样可以更容易让 AI 按照设定的方案继续工作
+        # 理论上来说，可以只要上面的 summary item，不要下面的 ack 和 continue items，
+        # 但是 ack_content 和 continue_content 可以提高 AI 的效果
+        ack_content = """I've reviewed the context from the previous session. I understand:
+        - The original goal and what was requested
+        - Which actions are ALREADY COMPLETED (I will NOT repeat these)
+        - The current state of the project
+        - What still needs to be done
+
+        I'll continue with the REMAINING tasks only, starting from where we left off."""
+        ack_item = MessageItem(
+            role="assistant",
+            content=ack_content,
+            token_count=count_tokens(ack_content, self._model_name),
+        )
+        self._messages.append(ack_item)
+
+        continue_content = (
+            "Continue with the REMAINING work only. Do NOT repeat any completed actions. "
+            "Proceed with the next step as described in the context above."
+        )
+
+        continue_item = MessageItem(
+            role="user",
+            content=continue_content,
+            token_count=count_tokens(continue_content, self._model_name),
+        )
+        self._messages.append(continue_item)

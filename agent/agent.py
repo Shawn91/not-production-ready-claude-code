@@ -3,7 +3,7 @@ from typing import AsyncGenerator
 
 from agent.events import AgentEvent, AgentEventType
 from agent.session import Session
-from client.response import StreamEventType, ToolCall, ToolResultMessage
+from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage
 from config.config import Config
 
 
@@ -38,8 +38,19 @@ class Agent:
             # 将 session 内部的 turn 计数 +1
             self.session.increment_turn()
             response_text = ""
+
+            if self.session.context_manager.needs_compression():
+                summary, usage = await self.session.chat_compactor.compress(
+                    context_manager=self.session.context_manager
+                )
+                if summary and usage:
+                    self.session.context_manager.replace_with_summary(summary)
+                    self.session.context_manager.set_latest_usage(usage)
+                    self.session.context_manager.add_usage(usage)
+
             tool_schemas = self.session.tool_registry.get_schemas()
             tool_calls: list[ToolCall] = []
+            usage: TokenUsage | None = None
 
             # client 返回的是 llm client events，这里接收到之后，要转换为 agent event
             async for event in self.session.client.chat_completion(
@@ -58,6 +69,8 @@ class Agent:
                     tool_calls.append(event.tool_call)
                 elif event.type == StreamEventType.ERROR:
                     yield AgentEvent.agent_error(event.error or "Unknown error")
+                elif event.type == StreamEventType.MESSAGE_COMPLETE:
+                    usage = event.usage
 
             self.session.context_manager.add_assistant_message(
                 response_text,
@@ -80,6 +93,9 @@ class Agent:
                 yield AgentEvent.text_complete(content=response_text)
 
             if not tool_calls:
+                if usage:
+                    self.session.context_manager.set_latest_usage(usage)
+                    self.session.context_manager.add_usage(usage)
                 return
 
             # 依次执行所有的 tools
@@ -109,6 +125,9 @@ class Agent:
                 self.session.context_manager.add_tool_result(
                     tool_result_message.tool_call_id, tool_result_message.content
                 )
+            if usage:
+                self.session.context_manager.set_latest_usage(usage)
+                self.session.context_manager.add_usage(usage)
 
         yield AgentEvent.agent_error(f"Maximum turns ({self.config.max_turns}) reached")
 
