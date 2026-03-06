@@ -1,2 +1,15 @@
+hooks_enabled=true
+
 [model]
 name = "poe/gpt-5.3-codex"
+
+# 示例如何添加hook
+# [[hooks]]
+# name = "test_before_tool"
+# trigger="before_tool"
+# command = 'python ./scripts/test_tool.py'
+
+# [[hooks]]
+# name = "test_before_agent"
+# trigger="before_agent"
+# command = 'python ./scripts/test_tool.py'

@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -44,12 +45,39 @@ class ModelConfig(BaseModel):
     context_window: int = 256000
 
 
+class HookTrigger(str, Enum):
+    BEFORE_AGENT = "before_agent"
+    AFTER_AGENT = "after_agent"
+    BEFORE_TOOL = "before_tool"
+    AFTER_TOOL = "after_tool"
+    ON_ERROR = "on_error"
+
+
+class HookConfig(BaseModel):
+    name: str
+    trigger: HookTrigger
+    # command 主要是用于执行 shell 命令的，如 `python tests.py`
+    command: str | None = None
+    # script 主要是用于执行 shell 脚本的，如 `tests.sh`
+    script: str | None = None
+    timeout_sec: int = 30
+    enabled: bool = True
+
+    @model_validator(mode="after")
+    def validate_hook(self) -> "HookConfig":
+        if not self.command and not self.script:
+            raise ValueError("Hook must have either command or script")
+        return self
+
+
 class Config(BaseModel):
     model: ModelConfig = Field(default_factory=ModelConfig)
     cwd: Path = Field(default_factory=Path.cwd)
     shell_environment: ShellEnvironmentPolicy = Field(
         default_factory=ShellEnvironmentPolicy
     )
+    hooks_enabled: bool = False
+    hooks: list[HookConfig] = Field(default_factory=list)
     max_turns: int = 100  # 一个聊天记录中，最多可以有多少轮对话
     # 仅限 subagent tool 才需要这个属性
     allowed_tools: list[str] | None = Field(

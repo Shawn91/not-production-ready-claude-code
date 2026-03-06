@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from config.config import Config
+from hooks.hook_system import HookSystem
 from tools import get_all_builtin_tools
 from tools.base import Tool, ToolInvocation, ToolResult
 from tools.subagent import SubagentTool, get_default_subagent_definitions
@@ -40,27 +41,71 @@ class ToolRegistry:
         """返回所有 tools 的 openai schema"""
         return [t.to_openai_schema() for t in self.get_tools()]
 
-    async def invoke(self, name: str, params: dict[str, Any], cwd: Path) -> ToolResult:
+    async def invoke(
+        self, name: str, params: dict[str, Any], cwd: Path, hook_system: HookSystem
+    ) -> ToolResult:
         """调用一个 tool"""
         tool = self.get(name)
         if tool is None:
-            return ToolResult.error_result(
-                f"Unknown tool: {name}", metadata={"tool_name": name}
+            result = ToolResult.error_result(
+                f"Unknown tool: {name}",
+                metadata={"tool_name": name},
             )
+            await hook_system.trigger_after_tool(name, params, result)
+            return result
+
         validation_errors = tool.validate_params(params)
         if validation_errors:
-            return ToolResult.error_result(
-                f"Invalid parameters for tool {name}: {'; '.join(validation_errors)}",
+            result = ToolResult.error_result(
+                f"Invalid parameters: {'; '.join(validation_errors)}",
                 metadata={"tool_name": name, "validation_errors": validation_errors},
             )
+
+            await hook_system.trigger_after_tool(name, params, result)
+
+            return result
+
+        await hook_system.trigger_before_tool(name, params)
+        invocation = ToolInvocation(
+            params=params,
+            cwd=cwd,
+        )
+        # if approval_manager:
+        #     confirmation = await tool.get_confirmation(invocation)
+        #     if confirmation:
+        #         context = ApprovalContext(
+        #             tool_name=name,
+        #             params=params,
+        #             is_mutating=tool.is_mutating(params),
+        #             affected_paths=confirmation.affected_paths,
+        #             command=confirmation.command,
+        #             is_dangerous=confirmation.is_dangerous,
+        #         )
+
+        #         decision = await approval_manager.check_approval(context)
+        #         if decision == ApprovalDecision.REJECTED:
+        #             result = ToolResult.error_result(
+        #                 "Operation rejected by safety policy"
+        #             )
+        #             await hook_system.trigger_after_tool(name, params, result)
+        #             return result
+        #         elif decision == ApprovalDecision.NEEDS_CONFIRMATION:
+        #             approved = approval_manager.request_confirmation(confirmation)
+
+        #             if not approved:
+        #                 result = ToolResult.error_result("User rejected the operation")
+        #                 await hook_system.trigger_after_tool(name, params, result)
+        #                 return result
+
         try:
-            invocation = ToolInvocation(params=params, cwd=cwd)
             result = await tool.execute(invocation)
         except Exception as e:
-            logger.error(f"Error invoking tool {name}: {e}")
+            logger.exception(f"Tool {name} raised unexpected error")
             result = ToolResult.error_result(
-                f"Error invoking tool {name}: {e}", metadata={"tool_name": name}
+                f"Internal error: {str(e)}", metadata={"tool_name", name}
             )
+
+        await hook_system.trigger_after_tool(name, params, result)
         return result
 
 

@@ -14,6 +14,7 @@ class Agent:
 
     async def run(self, message: str):
         """给定消息历史，运行一轮 agent。此外，还要负责发送事件消息等额外工作"""
+        await self.session.hook_system.trigger_before_agent(user_message=message)
         # 向外通知 agent 启动了
         yield AgentEvent.agent_start(message)
         self.session.context_manager.add_user_message(message)
@@ -25,6 +26,9 @@ class Agent:
                 final_response = event.data.get("content", "")
 
         self.session.context_manager.add_assistant_message(final_response)
+        await self.session.hook_system.trigger_after_agent(
+            user_message=message, agent_response=final_response
+        )
         yield AgentEvent.agent_end(final_response)
 
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
@@ -109,7 +113,10 @@ class Agent:
                     arguments=tool_call.arguments,
                 )
                 result = await self.session.tool_registry.invoke(
-                    name=tool_call.name, params=tool_call.arguments, cwd=self.config.cwd
+                    name=tool_call.name,
+                    params=tool_call.arguments,
+                    cwd=self.config.cwd,
+                    hook_system=self.session.hook_system,
                 )
                 yield AgentEvent.tool_call_complete(
                     call_id=tool_call.call_id,
