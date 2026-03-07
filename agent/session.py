@@ -1,6 +1,7 @@
 import json
 import uuid
 from datetime import datetime
+from typing import Any
 
 from client.llm_client import LLMClient
 from config.config import Config
@@ -54,3 +55,14 @@ class Session:
             return "\n".join(lines)
         except Exception:
             return None
+
+    def get_stats(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "created_at": self.created_at.isoformat(),
+            "turn_count": self._turn_count,
+            "message_count": self.context_manager.message_count,
+            "token_usage": self.context_manager.total_usage,
+            "tools_count": len(self.tool_registry.get_tools()),
+            # "mcp_servers": len(self.tool_registry.connected_mcp_servers),
+        }
