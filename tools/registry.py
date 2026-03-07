@@ -4,6 +4,7 @@ from typing import Any
 
 from config.config import Config
 from hooks.hook_system import HookSystem
+from safety.approval import ApprovalContext, ApprovalDecision, ApprovalManager
 from tools import get_all_builtin_tools
 from tools.base import Tool, ToolInvocation, ToolResult
 from tools.subagent import SubagentTool, get_default_subagent_definitions
@@ -42,7 +43,12 @@ class ToolRegistry:
         return [t.to_openai_schema() for t in self.get_tools()]
 
     async def invoke(
-        self, name: str, params: dict[str, Any], cwd: Path, hook_system: HookSystem
+        self,
+        name: str,
+        params: dict[str, Any],
+        cwd: Path,
+        approval_manager: ApprovalManager,
+        hook_system: HookSystem,
     ) -> ToolResult:
         """调用一个 tool"""
         tool = self.get(name)
@@ -70,32 +76,32 @@ class ToolRegistry:
             params=params,
             cwd=cwd,
         )
-        # if approval_manager:
-        #     confirmation = await tool.get_confirmation(invocation)
-        #     if confirmation:
-        #         context = ApprovalContext(
-        #             tool_name=name,
-        #             params=params,
-        #             is_mutating=tool.is_mutating(params),
-        #             affected_paths=confirmation.affected_paths,
-        #             command=confirmation.command,
-        #             is_dangerous=confirmation.is_dangerous,
-        #         )
+        if approval_manager:
+            confirmation = await tool.get_confirmation(invocation)
+            if confirmation:
+                context = ApprovalContext(
+                    tool_name=name,
+                    params=params,
+                    is_mutating=tool.is_mutating(params),
+                    affected_paths=confirmation.affected_paths,
+                    command=confirmation.command,
+                    is_dangerous=confirmation.is_dangerous,
+                )
 
-        #         decision = await approval_manager.check_approval(context)
-        #         if decision == ApprovalDecision.REJECTED:
-        #             result = ToolResult.error_result(
-        #                 "Operation rejected by safety policy"
-        #             )
-        #             await hook_system.trigger_after_tool(name, params, result)
-        #             return result
-        #         elif decision == ApprovalDecision.NEEDS_CONFIRMATION:
-        #             approved = approval_manager.request_confirmation(confirmation)
+                decision = await approval_manager.check_approval(context)
+                if decision == ApprovalDecision.REJECTED:
+                    result = ToolResult.error_result(
+                        "Operation rejected by safety policy"
+                    )
+                    await hook_system.trigger_after_tool(name, params, result)
+                    return result
+                elif decision == ApprovalDecision.NEEDS_CONFIRMATION:
+                    approved = approval_manager.request_confirmation(confirmation)
 
-        #             if not approved:
-        #                 result = ToolResult.error_result("User rejected the operation")
-        #                 await hook_system.trigger_after_tool(name, params, result)
-        #                 return result
+                    if not approved:
+                        result = ToolResult.error_result("User rejected the operation")
+                        await hook_system.trigger_after_tool(name, params, result)
+                        return result
 
         try:
             result = await tool.execute(invocation)

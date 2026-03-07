@@ -1,16 +1,22 @@
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable
 
 from agent.events import AgentEvent, AgentEventType
 from agent.session import Session
 from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage
 from config.config import Config
+from tools.base import ToolConfirmation
 
 
 class Agent:
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        confirmation_callback: Callable[[ToolConfirmation], bool] | None = None,
+    ):
         self.config = config
         self.session = Session(config=config)
+        self.session.approval_manager.confirmation_callback = confirmation_callback
 
     async def run(self, message: str):
         """给定消息历史，运行一轮 agent。此外，还要负责发送事件消息等额外工作"""
@@ -116,6 +122,7 @@ class Agent:
                     name=tool_call.name,
                     params=tool_call.arguments,
                     cwd=self.config.cwd,
+                    approval_manager=self.session.approval_manager,
                     hook_system=self.session.hook_system,
                 )
                 yield AgentEvent.tool_call_complete(

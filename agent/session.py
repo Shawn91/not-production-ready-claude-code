@@ -8,6 +8,7 @@ from config.loader import get_data_dir
 from context.compaction import ChatCompactor
 from context.manager import ContextManager
 from hooks.hook_system import HookSystem
+from safety.approval import ApprovalManager
 from tools.registry import create_default_tool_registry
 
 
@@ -23,6 +24,7 @@ class Session:
         self.config = config
         self.session_id = str(uuid.uuid4())
         self.chat_compactor = ChatCompactor(client=self.client)
+        self.approval_manager = ApprovalManager(self.config.approval, self.config.cwd)
         self.hook_system = HookSystem(config=config)
         self.created_at = datetime.now()
         self.updated_at = datetime.now()

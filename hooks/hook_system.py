@@ -18,8 +18,6 @@ class HookSystem:
         if self.config.hooks_enabled:
             self.hooks = [h for h in self.config.hooks if h.enabled]
 
-        print(self.hooks)
-
     async def _run_hook(self, hook: HookConfig, env: dict[str, str]):
         try:
             if hook.command:

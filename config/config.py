@@ -45,6 +45,15 @@ class ModelConfig(BaseModel):
     context_window: int = 256000
 
 
+class ApprovalPolicy(str, Enum):
+    ON_REQUEST = "on-request"
+    ON_FAILURE = "on-failure"
+    AUTO = "auto"
+    AUTO_EDIT = "auto-edut"
+    NEVER = "never"
+    YOLO = "yolo"
+
+
 class HookTrigger(str, Enum):
     BEFORE_AGENT = "before_agent"
     AFTER_AGENT = "after_agent"
@@ -78,6 +87,7 @@ class Config(BaseModel):
     )
     hooks_enabled: bool = False
     hooks: list[HookConfig] = Field(default_factory=list)
+    approval: ApprovalPolicy = ApprovalPolicy.ON_REQUEST
     max_turns: int = 100  # 一个聊天记录中，最多可以有多少轮对话
     # 仅限 subagent tool 才需要这个属性
     allowed_tools: list[str] | None = Field(

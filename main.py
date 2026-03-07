@@ -35,7 +35,9 @@ class CLI:
                 "commands: /help /config /approval /model /exit",
             ],
         )
-        async with Agent(config=self.config) as agent:
+        async with Agent(
+            config=self.config, confirmation_callback=self.tui.handle_confirmation
+        ) as agent:
             self.agent = agent
             while True:
                 try:
