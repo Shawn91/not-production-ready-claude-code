@@ -1,10 +1,13 @@
 import json
+from asyncore import loop
 from typing import AsyncGenerator, Callable
 
 from agent.events import AgentEvent, AgentEventType
 from agent.session import Session
 from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage
 from config.config import Config
+from context import loop_detector
+from prompts.system import create_loop_breaker_prompt
 from tools.base import ToolConfirmation
 
 
@@ -102,6 +105,9 @@ class Agent:
 
             if response_text:
                 yield AgentEvent.text_complete(content=response_text)
+                self.session.loop_detector.record_action(
+                    action_type="response", text=response_text
+                )
 
             if not tool_calls:
                 if usage:
@@ -118,6 +124,12 @@ class Agent:
                     name=tool_call.name,
                     arguments=tool_call.arguments,
                 )
+                self.session.loop_detector.record_action(
+                    action_type="tool_call",
+                    tool_name=tool_call.name,
+                    args=tool_call.arguments,
+                )
+
                 result = await self.session.tool_registry.invoke(
                     name=tool_call.name,
                     params=tool_call.arguments,
@@ -141,6 +153,14 @@ class Agent:
                 self.session.context_manager.add_tool_result(
                     tool_result_message.tool_call_id, tool_result_message.content
                 )
+
+            loop_detection_error = self.session.loop_detector.check_for_loop()
+            if loop_detection_error:
+                loop_prompt = create_loop_breaker_prompt(
+                    loop_description=loop_detection_error
+                )
+                self.session.context_manager.add_user_message(content=loop_prompt)
+
             if usage:
                 self.session.context_manager.set_latest_usage(usage)
                 self.session.context_manager.add_usage(usage)
